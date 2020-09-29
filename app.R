@@ -15,11 +15,11 @@ ui <- fluidPage(
   
   verticalLayout(
     withMathJax(),
-    p("Suppose that we have a population of 100,000 people, in which some have a disease, $D$. Using the sliders, you can set the baseline prevalenc of the disease, $P(\\text{D})$, as well as the specificity and sensitivity of the test."),
+    p("Suppose that we have a population of 100,000 people, in which some have a disease, $D$. Using the sliders, you can set the baseline prevalence of the disease, $P(\\text{D})$, as well as the specificity and sensitivity of the test."),
     
-    p("Recall that the $specificity$ of a test represents how often the test correctly identifies those without the disease, $P(- | \\neg D)$ and the $sensitivity$ of a test represents how often the test correctly identifies this with the disease, $P(+ | D)$."),
+    p("Recall that the $specificity$ of a test represents how often the test correctly identifies those without the disease, $P(- | \\neg D)$ and the $sensitivity$ of a test represents how often the test correctly identifies those with the disease, $P(+ | D)$."),
     
-    p("Note that false positives are depicted in this Euler diagram by the blue area."),
+    p("Note that false positives are depicted in this Euler diagram by the $\\color{steelblue}{\\text{blue area}}$."),
     
     h5("What happens to the size of the blue area as the prevalence — or 'base rate' — changes?"),
   
@@ -49,15 +49,17 @@ ui <- fluidPage(
                   max = 1,
                   value = 0.6),
       radioButtons("radio", "Display quantites as:",
-                   choices = list("Numbers, out of 100,000" = "A", "Percent" = "B"), selected = "A")
+                   choices = list("Counts, out of 100,000" = "num", "Percent" = "pc"), selected = "num")
       
     ),
     
     # Main panel for displaying outputs ----
     mainPanel(
+      conditionalPanel(
+        condition = "input.radio == 'num'", plotOutput("plot.num")),
+      conditionalPanel(
+        condition = "input.radio == 'pc'", plotOutput("plot.pc"))
       
-      # Output: Tabset w/ plot, summary, and table ----
-      plotOutput("eulerchart")
        )   
     )
   )
@@ -67,11 +69,8 @@ ui <- fluidPage(
 # Define server logic required to draw a histogram ----
 server <- function(input, output) {
   
-  library(VennDiagram)
   library(tidyverse)
   library(ggplot2)
-  library(grid)
-  library(cowplot)
   
   
   # prevalence = 0.9%
@@ -83,9 +82,11 @@ server <- function(input, output) {
   # specificity = 90%
   # spec <- 0.90
   
+  n <- 100000
+  
+  
   df1 <- reactive({
   
-  n <- 100000
   df <- data.frame(rep(NA, n))
   df$id <- seq(1:n)
   df$disease <- rbinom(n, 1, input$prev)
@@ -111,39 +112,34 @@ server <- function(input, output) {
   col3 <- colorblind.values[c(6, 13, 5)]
   col4 <- colorblind.values[c(3,6,11,13)]
   
-  output$eulerchart <- renderPlot({
+ fit1 <- reactive({
     library(eulerr)
-    
     temp <- venn.values()
-    disease <- temp[1]
-    test.pos <- temp[2]
-    overlap <- temp[3]
-    total <- n
+    disease <- as.numeric(temp[1])
+    test.pos <- as.numeric(temp[2])
+    overlap <- as.numeric(temp[3])
+    total <- as.numeric(n)
     # Input in the form of a named numeric vector
     fit1 <- euler(c("A" = n-disease-test.pos+overlap, "B" = 0, "C" = 0,
                     "A&B" = disease-overlap, "A&C" = test.pos-overlap, "B&C" = 0,
                     "A&B&C" = overlap),
                   shape="ellipse")
-    labs <- c("All individuals", "Has the disease", "Tests Positive")
-    
-    plot.function <- function(x, type){
-      switch(type,
-      A = plot(x, quantities = list(type = c("counts")),
-               legend = list(side = "right", labels = labs),
-               fills = c("white", "red", "lightblue")),
-      B = plot(x, quantities = list(type = c("percent")),
-               legend = list(side = "right", labels = labs),
-               fills = c("white", "red", "lightblue"))
-      )
-    }
-    
-    plot.function(fit1, input$radio)
-
-    
+ })
  
-  })
+ output$plot.num = renderPlot({
+   labs <- c("All individuals", "Has the disease", "Tests Positive")
+   plot(fit1(), quantities = list(type = c("counts")),
+        legend = list(side = "right", labels = labs),
+        fills = c("white", "red", "steelblue"))
+ })
+ 
+ output$plot.pc = renderPlot({
+   labs <- c("All individuals", "Has the disease", "Tests Positive")
+   plot(fit1(), quantities = list(type = c("percent")),
+        legend = list(side = "right", labels = labs),
+        fills = c("white", "red", "steelblue"))
+ })
 
-  
 }
 
 # Run the application 
